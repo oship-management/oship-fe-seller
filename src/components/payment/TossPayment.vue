@@ -43,7 +43,8 @@ const paymentWidgetRef = ref()
 const paymentProcessing = ref(false)
 let paymentWidget = null
 
-const clientKey = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq' // 테스트 키
+// 토스페이먼츠 공식 테스트 클라이언트 키
+const clientKey = 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm'
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('ko-KR', {
@@ -56,19 +57,27 @@ const initializePaymentWidget = async () => {
   try {
     // 토스페이먼트 위젯 초기화
     if (window.PaymentWidget) {
-      paymentWidget = new window.PaymentWidget(clientKey, props.paymentData.orderId)
+      // 고객 키 생성 - UUID 부분만 사용
+      const customerKey = props.paymentData.orderId.substring(0, 20)
+      console.log('Initializing PaymentWidget with:', { clientKey, customerKey })
+      
+      paymentWidget = new window.PaymentWidget(clientKey, customerKey)
 
-      // 결제 수단 렌더링
-      await paymentWidget.renderPaymentMethods({
-        selector: '#payment-widget',
-        variantKey: 'DEFAULT'
-      })
+      // 결제 수단 렌더링 - 금액 포함
+      const amount = parseInt(props.paymentData.amount)
+      await paymentWidget.renderPaymentMethods(
+        '#payment-widget',
+        { 
+          value: amount,
+          currency: 'KRW',
+          variantKey: 'DEFAULT' 
+        }
+      )
 
       // 약관 렌더링
-      await paymentWidget.renderAgreement({
-        selector: '#agreement',
-        variantKey: 'AGREEMENT'
-      })
+      await paymentWidget.renderAgreement('#agreement')
+      
+      console.log('Payment widget initialized with amount:', amount)
     } else {
       throw new Error('TossPayments widget not loaded')
     }
@@ -88,33 +97,31 @@ const handlePayment = async () => {
   try {
     paymentProcessing.value = true
 
-    // 실제로는 토스페이먼트 결제 요청
-    // 여기서는 시뮬레이션으로 성공 처리
-    setTimeout(() => {
-      const mockPaymentResult = {
-        paymentKey: `test_payment_key_${Date.now()}`,
-        orderId: props.paymentData.orderId,
-        amount: props.paymentData.amount
-      }
-      
-      emit('success', mockPaymentResult)
-      paymentProcessing.value = false
-    }, 2000)
+    // 금액 확인 및 정수 변환
+    const amount = parseInt(props.paymentData.amount)
+    console.log('Payment amount:', amount, 'Type:', typeof amount)
+    
+    // 금액 유효성 검증
+    if (!amount || amount <= 0) {
+      throw new Error(`유효하지 않은 결제 금액입니다: ${props.paymentData.amount}`)
+    }
 
-    /* 실제 토스페이먼트 연동 시 사용할 코드
-    await paymentWidget.requestPayment({
+    // 결제 요청 데이터 로깅
+    const paymentRequest = {
       orderId: props.paymentData.orderId,
       orderName: props.paymentData.orderName,
       customerName: props.paymentData.customerName,
       customerEmail: props.paymentData.customerEmail || 'test@example.com',
-      successUrl: props.paymentData.successUrl,
-      failUrl: props.paymentData.failUrl,
-      amount: {
-        currency: 'KRW',
-        value: props.paymentData.amount
-      }
+      successUrl: props.paymentData.successUrl || `${window.location.origin}/payment/success`,
+      failUrl: props.paymentData.failUrl || `${window.location.origin}/payment/fail`
+    }
+    console.log('Payment request data:', paymentRequest)
+
+    // 토스페이먼트 결제 요청 - amount는 별도로 전달
+    await paymentWidget.requestPayment({
+      ...paymentRequest,
+      amount: amount
     })
-    */
 
   } catch (error) {
     console.error('Payment request failed:', error)
@@ -164,26 +171,7 @@ onUnmounted(() => {
   border: 1px solid #e4e7ed;
   border-radius: 8px;
   padding: 20px;
-  background: #fafafa;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.payment-widget::before {
-  content: "토스페이먼트 위젯 영역";
-  color: #666;
-  font-size: 18px;
-  margin-bottom: 16px;
-}
-
-.payment-widget::after {
-  content: "실제 환경에서는 토스페이먼트 결제 위젯이 표시됩니다";
-  color: #999;
-  font-size: 14px;
-  margin-top: 16px;
+  background: #ffffff;
 }
 
 .payment-actions {

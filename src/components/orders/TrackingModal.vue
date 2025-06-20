@@ -96,6 +96,7 @@
 import { ref, computed, watch } from 'vue'
 import { Location, Van, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { shipmentApi } from '@/api/shipments'
 
 const props = defineProps({
   visible: {
@@ -146,40 +147,25 @@ const loadTrackingEvents = async (order) => {
     loadingTracking.value = true
     trackingEvents.value = []
     
-    // API call to load tracking events
-    // const response = await shipmentApi.getTrackingEvents(order.id)
-    // if (response.success && response.data) {
-    //   trackingEvents.value = response.data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    // }
+    console.log(`Loading tracking events for order ID: ${order.id}`)
     
-    // Mock data for now
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    trackingEvents.value = [
-      {
-        id: 1,
-        event: 'ORDER_PLACED',
-        eventDescription: '주문이 접수되었습니다.',
-        description: '주문 처리를 시작합니다.',
-        createdAt: '2023-12-01T10:00:00Z'
-      },
-      {
-        id: 2,
-        event: 'LABEL_CREATED',
-        eventDescription: '배송 라벨이 생성되었습니다.',
-        description: '배송 준비중입니다.',
-        createdAt: '2023-12-01T11:00:00Z'
-      },
-      {
-        id: 3,
-        event: 'PICKED_UP',
-        eventDescription: '패키지가 픽업되었습니다.',
-        description: '운송을 시작합니다.',
-        createdAt: '2023-12-01T14:00:00Z'
-      }
-    ]
+    // API call to load tracking events
+    const response = await shipmentApi.getTrackingEvents(order.id)
+    console.log('Tracking events response:', response)
+    
+    if (response.data && response.data.data) {
+      // Sort events by creation date (newest first)
+      trackingEvents.value = response.data.data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      console.log(`Loaded ${trackingEvents.value.length} tracking events`)
+    } else {
+      console.log('No tracking events found in response')
+      trackingEvents.value = []
+    }
+    
   } catch (error) {
     console.error('Failed to load tracking events:', error)
     ElMessage.error('배송 추적 정보를 불러오는데 실패했습니다.')
+    trackingEvents.value = []
   } finally {
     loadingTracking.value = false
   }

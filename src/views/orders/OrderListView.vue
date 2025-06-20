@@ -849,6 +849,14 @@ const openShippingModal = async () => {
     return
   }
   
+  // Check if any selected orders have PAID status
+  const paidOrders = selectedOrdersData.value.filter(order => order.orderStatus === 'PAID')
+  if (paidOrders.length > 0) {
+    const paidOrderNumbers = paidOrders.map(order => order.oshopMasterNo).join(', ')
+    ElMessage.error(`결제 완료(PAID) 상태의 주문은 배송 처리할 수 없습니다.\nPAID 주문: ${paidOrderNumbers}`)
+    return
+  }
+  
   try {
     loadingRates.value = true
     carrierRates.value = []

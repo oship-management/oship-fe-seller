@@ -133,7 +133,7 @@ npm run preview
 현재 테스트 키를 사용하고 있습니다. 실제 운영 시에는 실제 클라이언트 키로 변경해야 합니다.
 
 ```javascript
-const clientKey = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq' // 테스트 키
+const clientKey = 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm' // 테스트 키 공식문서에 오픈
 ```
 
 ## 브라우저 지원

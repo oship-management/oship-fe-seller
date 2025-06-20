@@ -1,6 +1,11 @@
 import apiClient from './index'
 
 export const paymentApi = {
+  // 결제 준비 - 토스 결제창 호출 전 필요한 정보 제공
+  preparePayment: (data) => {
+    return apiClient.post('/v1/payments/prepare', data)
+  },
+  
   // 결제 내역 조회
   getPayments: (params) => {
     return apiClient.get('/v1/payments', { params })

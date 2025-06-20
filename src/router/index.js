@@ -38,6 +38,24 @@ const router = createRouter({
           component: () => import('@/views/orders/OrderListView.vue')
         }
       ]
+    },
+    {
+      path: '/payment/success',
+      name: 'PaymentSuccess',
+      component: () => import('@/views/payments/PaymentSuccessView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
+      path: '/payment/fail',
+      name: 'PaymentFail',
+      component: () => import('@/views/payments/PaymentFailView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
+      path: '/payment-widget',
+      name: 'PaymentWidget',
+      component: () => import('@/views/payments/PaymentWidgetView.vue'),
+      meta: { requiresAuth: false }
     }
   ]
 })

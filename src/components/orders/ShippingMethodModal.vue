@@ -115,14 +115,34 @@
       </div>
     </template>
   </el-dialog>
+
+  <!-- 토스 페이먼트 모달 -->
+  <el-dialog
+    v-model="showPaymentModal"
+    title="결제하기"
+    width="600px"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    @close="handlePaymentModalClose"
+  >
+    <TossPayment
+      v-if="paymentData"
+      :payment-data="paymentData"
+      @success="handlePaymentSuccess"
+      @fail="handlePaymentFail"
+    />
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, watch, nextTick } from 'vue'
 import { Loading, Printer } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 import { shipmentApi } from '@/api/shipments'
+import { paymentApi } from '@/api/payments'
 import JsBarcode from 'jsbarcode'
+import TossPayment from '@/components/payment/TossPayment.vue'
 
 const props = defineProps({
   // 모달 표시 여부
@@ -162,10 +182,12 @@ const emit = defineEmits([
 // Local state
 const selectedShippingMethod = ref(null)
 const selectedShippingPrice = ref(0)
-const currentStep = ref('selection') // 'selection' | 'barcode'
+const currentStep = ref('selection') // 'selection' | 'payment' | 'barcode'
 const processing = ref(false)
 const printing = ref(false)
 const generatedBarcodes = ref([])
+const showPaymentModal = ref(false)
+const paymentData = ref(null)
 
 // Watch for modal close to reset selection
 watch(() => props.modelValue, (visible) => {
@@ -193,6 +215,8 @@ const resetSelection = () => {
   processing.value = false
   printing.value = false
   generatedBarcodes.value = []
+  showPaymentModal.value = false
+  paymentData.value = null
 }
 
 const confirmShipping = async () => {
@@ -215,12 +239,93 @@ const confirmShipping = async () => {
       return
     }
     
-    // 각 주문에 대해 shipment 생성
-    const shipmentPromises = props.selectedOrders.map(order => 
-      shipmentApi.createOrderShipment(order.id, parseInt(carrierId))
+    // 프론트엔드에서 직접 결제 데이터 생성
+    const authStore = useAuthStore()
+    const user = authStore.user || { name: '테스트 사용자', email: 'test@example.com' }
+    
+    // UUID 생성 (토스 주문 ID로 사용)
+    const tossOrderId = crypto.randomUUID ? crypto.randomUUID() : 
+      'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0
+        const v = c == 'x' ? r : (r & 0x3 | 0x8)
+        return v.toString(16)
+      })
+    
+    // 토스 페이먼트 결제창 호출을 위한 데이터 설정
+    paymentData.value = {
+      amount: selectedShippingPrice.value,
+      orderId: tossOrderId,
+      orderName: `배송비 결제 - ${props.selectedOrdersCount}개 주문`,
+      customerName: user.name || '고객',
+      customerEmail: user.email || 'customer@example.com',
+      customerPhone: user.phone || '010-0000-0000',
+      successUrl: `${window.location.origin}/payment/success`,
+      failUrl: `${window.location.origin}/payment/fail`,
+      // 추가 정보 (결제 승인 시 필요)
+      orderIds: props.selectedOrders.map(order => order.id),
+      carrierId: parseInt(carrierId),
+      partnerId: parseInt(partnerId),
+      selectedRate
+    }
+    
+    // 결제 데이터를 window 객체에 저장 (팝업에서 접근 가능)
+    window.paymentData = paymentData.value
+    
+    // 토스 결제창을 새 창으로 열기
+    const paymentWindow = window.open(
+      `/payment-widget?amount=${paymentData.value.amount}&orderName=${encodeURIComponent(paymentData.value.orderName)}&orderId=${paymentData.value.orderId}`,
+      'tossPayment',
+      'width=700,height=800,scrollbars=yes'
     )
     
-    console.log(`Creating shipments for ${props.selectedOrders.length} orders with carrier ${carrierId}`)
+    // 메시지 리스너 등록
+    const messageHandler = (event) => {
+      if (event.origin !== window.location.origin) return
+      
+      if (event.data.type === 'PAYMENT_SUCCESS') {
+        console.log('Payment success received:', event.data)
+        handlePaymentSuccess(event.data.data)
+        window.removeEventListener('message', messageHandler)
+      } else if (event.data.type === 'PAYMENT_FAIL') {
+        console.log('Payment fail received:', event.data)
+        handlePaymentFail(event.data.data)
+        window.removeEventListener('message', messageHandler)
+      }
+    }
+    
+    window.addEventListener('message', messageHandler)
+    
+  } catch (error) {
+    console.error('Payment preparation failed:', error)
+    ElMessage.error('결제 준비 중 오류가 발생했습니다.')
+    currentStep.value = 'selection'
+  } finally {
+    processing.value = false
+  }
+}
+
+// 결제 성공 처리
+const handlePaymentSuccess = async (paymentResult) => {
+  try {
+    console.log('Payment success:', paymentResult)
+    
+    // paymentData가 없는 경우 처리 (PaymentSuccessView에서 돌아온 경우)
+    if (!paymentData.value || !paymentData.value.selectedRate) {
+      console.error('Payment data not found')
+      ElMessage.error('결제 데이터를 찾을 수 없습니다. 다시 시도해주세요.')
+      currentStep.value = 'selection'
+      return
+    }
+    
+    // 결제 승인은 PaymentSuccessView에서 이미 처리되었으므로 생략
+    console.log('Payment already confirmed in PaymentSuccessView')
+    
+    // 각 주문에 대해 shipment 생성
+    const shipmentPromises = props.selectedOrders.map(order => 
+      shipmentApi.createOrderShipment(order.id, paymentData.value.carrierId)
+    )
+    
+    console.log(`Creating shipments for ${props.selectedOrders.length} orders with carrier ${paymentData.value.carrierId}`)
     
     await Promise.all(shipmentPromises)
     
@@ -235,6 +340,9 @@ const confirmShipping = async () => {
     
     console.log('Generated barcodes data:', generatedBarcodes.value)
     
+    // 결제 모달 닫기
+    showPaymentModal.value = false
+    
     // 바코드 생성 단계로 전환
     currentStep.value = 'barcode'
     
@@ -246,24 +354,40 @@ const confirmShipping = async () => {
     }, 100)
     
     ElMessage.success(
-      `${props.selectedOrdersCount}개 주문이 ${selectedRate.carrierName} (${selectedRate.partnerName})로 배송 처리되었습니다.`
+      `결제가 완료되고 ${props.selectedOrdersCount}개 주문이 ${paymentData.value.selectedRate.carrierName} (${paymentData.value.selectedRate.partnerName})로 배송 처리되었습니다.`
     )
     
     // 부모 컴포넌트에 배송 처리 완료 알림
     const shippingData = {
-      carrierId: parseInt(carrierId),
-      partnerId: parseInt(partnerId),
-      selectedRate,
-      totalAmount: selectedShippingPrice.value
+      carrierId: paymentData.value.carrierId,
+      partnerId: paymentData.value.partnerId,
+      selectedRate: paymentData.value.selectedRate,
+      totalAmount: paymentData.value.amount,
+      paymentKey: paymentResult.paymentKey
     }
     emit('confirm', shippingData)
     
   } catch (error) {
-    console.error('Shipping confirmation failed:', error)
-    ElMessage.error('배송 처리에 실패했습니다.')
+    console.error('Payment confirmation failed:', error)
+    ElMessage.error('결제 승인 중 오류가 발생했습니다.')
+    showPaymentModal.value = false
     currentStep.value = 'selection'
-  } finally {
-    processing.value = false
+  }
+}
+
+// 결제 실패 처리
+const handlePaymentFail = (error) => {
+  console.error('Payment failed:', error)
+  ElMessage.error(error.message || '결제가 취소되었습니다.')
+  showPaymentModal.value = false
+  currentStep.value = 'selection'
+}
+
+// 결제 모달 닫기 처리
+const handlePaymentModalClose = () => {
+  if (currentStep.value !== 'barcode') {
+    ElMessage.warning('결제가 취소되었습니다.')
+    currentStep.value = 'selection'
   }
 }
 

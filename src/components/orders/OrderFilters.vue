@@ -11,10 +11,13 @@
           @change="updateFilters"
         >
           <el-option label="대기중" value="PENDING" />
+          <el-option label="결제완료" value="PAID" />
           <el-option label="처리중" value="PROCESSING" />
           <el-option label="배송중" value="SHIPPED" />
           <el-option label="배송완료" value="DELIVERED" />
+          <el-option label="실패" value="FAILED" />
           <el-option label="취소됨" value="CANCELLED" />
+          <el-option label="환불됨" value="REFUNDED" />
         </el-select>
       </el-form-item>
       

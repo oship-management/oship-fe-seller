@@ -45,7 +45,7 @@
             :key="order.id" 
             v-else-if="orders.length > 0"
             @click="handleOrderDetail(order)"
-            class="order-row"
+            :class="['order-row', { 'paid-order': order.orderStatus === 'PAID' }]"
           >
             <td @click.stop>
               <input 
@@ -208,7 +208,8 @@ watch(() => props.orders, (newOrders) => {
 
 // Computed
 const isAllSelected = computed(() => {
-  return props.orders.length > 0 && localSelectedOrders.value.length === props.orders.length
+  if (props.orders.length === 0) return false
+  return props.orders.every(order => localSelectedOrders.value.includes(order.id))
 })
 
 // Methods
@@ -216,6 +217,7 @@ const toggleAllOrders = () => {
   if (isAllSelected.value) {
     localSelectedOrders.value = []
   } else {
+    // Select all orders
     localSelectedOrders.value = props.orders.map(order => order.id)
   }
   updateSelectedOrders()
@@ -326,10 +328,13 @@ const getShipmentStatusType = (status) => {
 const getStatusText = (status) => {
   const statusTexts = {
     'PENDING': '대기중',
+    'PAID': '결제완료',
     'PROCESSING': '처리중',
     'SHIPPED': '배송중',
     'DELIVERED': '배송완료',
-    'CANCELLED': '취소됨'
+    'FAILED': '실패',
+    'CANCELLED': '취소됨',
+    'REFUNDED': '환불됨'
   }
   return statusTexts[status] || status
 }
@@ -337,10 +342,13 @@ const getStatusText = (status) => {
 const getStatusType = (status) => {
   const statusTypes = {
     'PENDING': 'info',
+    'PAID': 'success',
     'PROCESSING': 'warning',
     'SHIPPED': 'primary',
     'DELIVERED': 'success',
-    'CANCELLED': 'danger'
+    'FAILED': 'danger',
+    'CANCELLED': 'danger',
+    'REFUNDED': 'warning'
   }
   return statusTypes[status] || 'info'
 }
@@ -389,6 +397,19 @@ const getStatusType = (status) => {
 
 .order-table .order-row:hover {
   background: #f5f7fa;
+}
+
+.order-table .order-row.paid-order {
+  background-color: #f0f9ff;
+}
+
+.order-table .order-row.paid-order:hover {
+  background-color: #e0f2fe;
+}
+
+.checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .order-table tr:last-child td {
