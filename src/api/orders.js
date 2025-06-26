@@ -35,7 +35,7 @@ export const orderApi = {
   uploadExcel: (file) => {
     const formData = new FormData()
     formData.append('file', file)
-    return apiClient.post('/v3/orders/upload', formData, {
+    return apiClient.post('/v1/orders/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
