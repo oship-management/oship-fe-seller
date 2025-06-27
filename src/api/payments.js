@@ -29,5 +29,10 @@ export const paymentApi = {
   // 주문별 결제 조회
   getPaymentByOrderId: (orderId) => {
     return apiClient.get(`/v1/payments/orders/${orderId}`)
+  },
+  
+  // 나의 결제 내역 조회
+  getMyPayments: (params) => {
+    return apiClient.get('/v1/payments/mypayments', { params })
   }
 }
